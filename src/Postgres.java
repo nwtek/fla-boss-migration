@@ -1,187 +1,146 @@
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.Statement;
+import com.sforce.soap.partner.QueryResult;
+
+import java.sql.*;
+import java.util.List;
 
 public class Postgres {
 
-
+    static Connection postgresConnection;
         public static void main( String args[] ) {
 
-            //parseInsert();
-
-
-	   /*
-	   Scanner reader = new Scanner(System.in);  // Reading from System.in
-	   System.out.println("What would you like to do? (dbOpen | dbCreateTable | dbInsert | dbSelect | dbUpdate | dbDelete): ");
-	   String input = reader.nextLine(); // Scans the next token of the input as an int.
-	   System.out.println("Executing...");
-
-
-
-	   switch (input){
-		   case "dbInsert" 	: response = dbInsert();
-		   case "dbOpen" 	: response = dbOpen();
-		   case "dbUpdate" 	: response = dbUpdate();
-		   case "dbDelete" 	: response = dbDelete();
-		   case "dbSelect" 	: response = dbSelect();
-		   default: response = "Not a recognized command";
-	   }
-
-
-	   */
-
-            //System.out.println("Response : " + attachProperties());
+            dbOpen();
+                queryFLAs();
+            dbClose();
 
         }
 
-        public static String dbOpen (){
-            Connection c = null;
-            try {
-                Class.forName("org.postgresql.Driver");
-                c = DriverManager
-                        .getConnection("jdbc:postgresql://localhost:5432/testdb","postgres", "123");
-            } catch (Exception e) {
-                e.printStackTrace();
-                System.err.println(e.getClass().getName()+": "+e.getMessage());
-                System.exit(0);
-            }
-            System.out.println("Opened database successfully");
-            return "Opened database successfully";
-        }
+    private static void queryFLAs(){
 
-        public static String dbCreateTable() {
-            Connection c = null;
-            Statement stmt = null;
-            try {
-                Class.forName("org.postgresql.Driver");
-                c = DriverManager
-                        .getConnection("jdbc:postgresql://localhost:5432/postgres","postgres", "123");
+        try {
+            QueryResult queryResults = sfdcConnection.query("SELECT Id, Name, Status__c, Lease_Agreement_Type__c, OwnerId, Requestor__c, Account_Name__c, Master_Customer_Num__c, Contact_Name__c, Brewer_Installation_Method__c, Special_Instructions__c, Project_Manager__c, Service_Provider__c, Number_of_Installation_Locations__c, Lease_Term__c, Hanging_Allowance__c FROM Facility_Lease_Agreement__c Where CreatedDate >= 2014-01-01T00:00:00Z AND CreatedDate <= 2014-02-01T00:00:00Z limit 10 ");
 
-                System.out.println("Opened database successfully");
+            List<Boss_Implementation__c> implementations = new ArrayList<Boss_Implementation__c>();
 
-                stmt = c.createStatement();
-                String sql = "CREATE TABLE COMPANY " +
-                        "(ID INT PRIMARY KEY     NOT NULL," +
-                        " NAME           TEXT    NOT NULL, " +
-                        " AGE            INT     NOT NULL, " +
-                        " ADDRESS        CHAR(50), " +
-                        " SALARY         REAL)";
-                stmt.executeUpdate(sql);
-                stmt.close();
-                c.close();
-            } catch ( Exception e ) {
-                System.err.println( e.getClass().getName()+": "+ e.getMessage() );
-                System.exit(0);
-            }
-            return "Table created successfully";
-        }
+            if (queryResults.getSize() > 0) {
+                for (int i = 0; i < queryResults.getRecords().length; i++) {
+                    Facility_Lease_Agreement__c fla = (Facility_Lease_Agreement__c) queryResults.getRecords()[i];
 
-        public static String dbInsert() {
-            Connection c = null;
-            Statement stmt = null;
-            try {
-                Class.forName("org.postgresql.Driver");
-                c = DriverManager
-                        .getConnection("jdbc:postgresql://localhost:5432/postgres","postgres", "123");
-                c.setAutoCommit(false);
-                System.out.println("Opened database successfully");
+                    String flaId = fla.getId();
+                    System.out.println("FACILITY LEASE AGREEMENT: " + flaId);
 
-                stmt = c.createStatement();
-                String sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) "
-                        + "VALUES (1, 'Paul', 32, 'California', 20000.00 );";
-                stmt.executeUpdate(sql);
+                    Boss_Implementation__c implementation = new Boss_Implementation__c();
 
-                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) "
-                        + "VALUES (2, 'Allen', 25, 'Texas', 15000.00 );";
-                stmt.executeUpdate(sql);
+                    SObject imp = new SObject();
+                    imp.setField('test', 'test');
 
-                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) "
-                        + "VALUES (3, 'Teddy', 23, 'Norway', 20000.00 );";
-                stmt.executeUpdate(sql);
+                    //implementation.setFacility_Lease_Agreement__c(flaId);
+                    implementation.setField
+                    implementation.setName(fla.getName());
+                    implementation.setAccount__c(fla.getAccount_Name__c());
+                    implementation.setStatus__c(fla.getStatus__c());
+                    implementation.setType__c(fla.getLease_Agreement_Type__c());
 
-                sql = "INSERT INTO COMPANY (ID,NAME,AGE,ADDRESS,SALARY) "
-                        + "VALUES (4, 'Mark', 25, 'Rich-Mond ', 65000.00 );";
-                stmt.executeUpdate(sql);
+                    //FLA HAS PICKLIST OF PM'S, WILL NEED TO TRANSLATE
+                    //implementation.setStaples_Project_Manager__c();
 
-                stmt.close();
-                c.commit();
-                c.close();
-            } catch (Exception e) {
-                System.err.println( e.getClass().getName()+": "+ e.getMessage() );
-                System.exit(0);
-            }
-            return "Records created successfully";
-        }
+                    implementations.add(implementation);
 
-        public static String parseInsert() {
-            Connection c = null;
-            Statement stmt = null;
-            try {
-                Class.forName("org.postgresql.Driver");
-                c = DriverManager
-                        .getConnection("jdbc:postgresql://localhost:5432/postgres","postgres", "123");
-                c.setAutoCommit(false);
-                System.out.println("Opened database successfully");
-
-	         /*
-	          SHOW ALL TABLES
-	         DatabaseMetaData md = c.getMetaData();
-	         ResultSet rs = md.getTables(null, null, "%", null);
-	         while (rs.next()) {
-	           System.out.println(rs.getString(3));
-	         }
-	         */
-                stmt = c.createStatement();
-
-                String sql = "INSERT INTO PARSETESTONE (SHIPTO, CUSTOMERNAME, ADDRESS, ORDERCONTACT, SKU, MODEL, QUANTITY) "
-                        + "VALUES ('Test Ship To 2', 'James Inc.', '123 E. James Street, Boulder, CO 98342', 'James Smith', '934BO', '2014 Model', 10);";
-                stmt.executeUpdate(sql);
-
-                stmt.close();
-                c.commit();
-                c.close();
-            } catch (Exception e) {
-                System.err.println( e.getClass().getName()+": "+ e.getMessage() );
-                System.exit(0);
-            }
-            return "Records created successfully";
-        }
-
-        public static String dbSelect() {
-            Connection c = null;
-            Statement stmt = null;
-            try {
-                Class.forName("org.postgresql.Driver");
-                c = DriverManager
-                        .getConnection("jdbc:postgresql://localhost:5432/postgres","postgres", "123");
-                c.setAutoCommit(false);
-                System.out.println("Opened database successfully");
-
-                stmt = c.createStatement();
-                ResultSet rs = stmt.executeQuery( "SELECT * FROM COMPANY;" );
-                while ( rs.next() ) {
-                    int id = rs.getInt("id");
-                    String  name = rs.getString("name");
-                    int age  = rs.getInt("age");
-                    String  address = rs.getString("address");
-                    float salary = rs.getFloat("salary");
-                    System.out.println( "ID = " + id );
-                    System.out.println( "NAME = " + name );
-                    System.out.println( "AGE = " + age );
-                    System.out.println( "ADDRESS = " + address );
-                    System.out.println( "SALARY = " + salary );
-                    System.out.println();
+/*
+                        Id => FLA Lookup Field
+                        Name => Implementation Name
+                        Status__c   =>
+                        Lease_Agreement_Type__c
+                        OwnerId
+                        Requestor__c
+                        Account_Name__c
+                        Master_Customer_Num__c
+                        Contact_Name__c
+                        Brewer_Installation_Method__c
+                        Special_Instructions__c
+                        Project_Manager__c
+                        Service_Provider__c
+                        Number_of_Installation_Locations__c
+                        Lease_Term__c
+                        Hanging_Allowance__c
+*/
+                    dbSelect(flaId);
                 }
-                rs.close();
-                stmt.close();
-                c.close();
-            } catch ( Exception e ) {
-                System.err.println( e.getClass().getName()+": "+ e.getMessage() );
-                System.exit(0);
             }
-            return "Operation done successfully";
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    public static String dbSelect(String flaId) {
+
+        try {
+            postgresConnection.setAutoCommit(false);
+
+            PreparedStatement pstmt = postgresConnection.prepareStatement("SELECT * FROM apollo_fla Where id = ?");
+            pstmt.setString(1, flaId);
+            System.out.println("prepared statment: " + pstmt.toString());
+
+            ResultSet rs = pstmt.executeQuery();
+            while ( rs.next() ) {
+                //int id = rs.getInt("id");
+                String accountId            = rs.getString("account_name__c");
+                String contactId            = rs.getString("contact_name__c");
+                String flaID                = rs.getString("id");
+                String leaseType            = rs.getString("lease_agreement_type__c");
+                String specialInstructions  = rs.getString("special_instructions__c");
+                String status               = rs.getString("status__c");
+                String customerNumber       = rs.getString("customer");
+                String orderNumber          = rs.getString("invision_order_number__c");
+
+                //SITE
+                String street               = rs.getString("address_1");
+                String suite                = rs.getString("address_3");
+                String city                 = rs.getString("city");
+                String state                = rs.getString("state");
+                String zip                  = rs.getString("zip_code_p1");
+
+
+                //ASSET
+                String staplesSku           = rs.getString("staples_sku");
+                Integer quantity            = rs.getInt("qty");
+
+
+                System.out.println( "invision order number: " + orderNumber );
+                System.out.println( "street: " + street );
+                System.out.println("---");
+            }
+            rs.close();
+            pstmt.close();
+        } catch ( Exception e ) {
+            System.err.println( e.getClass().getName()+": "+ e.getMessage() );
+            System.exit(0);
+        }
+        return "Operation done successfully";
+    }
+
+
+    public static String dbOpen (){
+        postgresConnection = null;
+        try {
+            Class.forName("org.postgresql.Driver");
+            postgresConnection = DriverManager.getConnection("jdbc:postgresql://localhost:5432/apollo_fla","heran004", "");
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.err.println(e.getClass().getName()+": "+e.getMessage());
+            System.exit(0);
+        }
+        System.out.println("Opened database successfully");
+        return "Opened database successfully";
+    }
+
+    public static void dbClose() {
+        try{
+            postgresConnection.close();
+        }catch(Exception e){
+            System.err.println(e.getClass().getName()+": "+e.getMessage());
         }
 
-
+    }
 }
