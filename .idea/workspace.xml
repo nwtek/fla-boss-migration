@@ -2,10 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="aec3654a-79a9-4134-8090-845ecb0ec915" name="Default" comment="">
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/src/Postgres.java" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/out/production/fla_boss_migration_partner/Main.class" afterPath="$PROJECT_DIR$/out/production/fla_boss_migration_partner/Main.class" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/src/Main.java" afterPath="$PROJECT_DIR$/src/Main.java" />
     </list>
     <ignored path="$PROJECT_DIR$/out/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -276,6 +273,10 @@
   </component>
   <component name="VcsContentAnnotationSettings">
     <option name="myLimit" value="2678400000" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Added query method and postgres class." />
+    <option name="LAST_COMMIT_MESSAGE" value="Added query method and postgres class." />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager />
