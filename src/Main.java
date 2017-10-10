@@ -22,8 +22,9 @@ public class Main{
                     for (int i = 0; i < records.length; i++) {
 
                         SObject facility_lease_agreement = records[i];
-                        Object flaStatus = facility_lease_agreement.getField("Status__c");
-                        //Object flaStatus = facility_lease_agreement.getField("Status__c");
+                        Object flaStatus    = facility_lease_agreement.getField("Status__c");
+                        Object flaName      = facility_lease_agreement.getField("Name");
+                        Object flaType      = facility_lease_agreement.getField("Lease_Agreement_Type__c");
 
 
                         System.out.println("FLA ID: " + facility_lease_agreement.getId() + " Status: " + flaStatus);
