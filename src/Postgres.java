@@ -5,7 +5,9 @@ import java.util.List;
 
 public class Postgres {
 
+    static EnterpriseConnection sfdcConnection;
     static Connection postgresConnection;
+
         public static void main( String args[] ) {
 
             dbOpen();
