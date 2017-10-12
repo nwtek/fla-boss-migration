@@ -2,7 +2,9 @@ import com.sforce.soap.partner.*;
 import com.sforce.soap.partner.Error;
 import com.sforce.soap.partner.sobject.*;
 import com.sforce.ws.*;
+import com.sforce.ws.bind.XmlObject;
 
+import javax.xml.crypto.dsig.XMLObject;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -17,6 +19,8 @@ public class Main{
 
             queryFLAs();
 
+            //updateFacilityLeaseAgreement("'a7V1800000059BqEAI'");
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -24,7 +28,7 @@ public class Main{
 
         public static void queryFLAs(){
             try {
-                QueryResult queryResults = connection.query("SELECT Id, Name, Status__c, Lease_Agreement_Type__c, OwnerId, Requestor__c, Account_Name__c, Master_Customer_Num__c, Contact_Name__c, Brewer_Installation_Method__c, Special_Instructions__c, Project_Manager__c, Service_Provider__c, Number_of_Installation_Locations__c, Lease_Term__c, Hanging_Allowance__c FROM Facility_Lease_Agreement__c Where CreatedDate >= 2014-01-01T00:00:00Z AND CreatedDate <= 2014-02-01T00:00:00Z limit 1 ");
+                QueryResult queryResults = connection.query("SELECT Id, Name, Status__c, Lease_Agreement_Type__c, OwnerId, Requestor__c, Account_Name__c, Master_Customer_Num__c, Contact_Name__c, Brewer_Installation_Method__c, Special_Instructions__c, Project_Manager__c, Service_Provider__c, Number_of_Installation_Locations__c, Lease_Term__c, Hanging_Allowance__c FROM Facility_Lease_Agreement__c Where CreatedDate >= 2014-01-01T00:00:00Z AND CreatedDate <= 2014-02-01T00:00:00Z And Boss_Implementation__c = Null limit 1 ");
 
                 if (queryResults.getSize() > 0) {
                     SObject[] records = queryResults.getRecords();
@@ -93,10 +97,8 @@ public class Main{
 
                 SaveResult[] saveResults = connection.create(newImplementations);
 
-                List<String> successIds = processResults(saveResults);
-
                 //UPDATE FLA'S
-                updateFacilityLeaseAgreement(successIds);
+                updateFacilityLeaseAgreement(processResults(saveResults));
 
 
             }catch(Exception e){
@@ -106,10 +108,10 @@ public class Main{
         }
 
         //NEED BOTH THE FLA ID AND IMPLEMENTATION ID
-        public static void updateFacilityLeaseAgreement(List<String> implementationIds) {
+        public static void updateFacilityLeaseAgreement(String implementationIds) {
             try {
                 //TODO: RESOLVE LIST QUERY
-            QueryResult queryResults = connection.query("SELECT Id, Facility_Lease_Agreement__c FROM Boss_Implementation__c Where ID = : implementationIds ");
+            QueryResult queryResults = connection.query("SELECT Id, Facility_Lease_Agreement__c, Facility_Lease_Agreement__r.Name FROM Boss_Implementation__c Where ID IN (" + implementationIds + ")");
 
             if (queryResults.getSize() > 0) {
                 SObject[] records = queryResults.getRecords();
@@ -118,21 +120,41 @@ public class Main{
 
                 for (int i = 0; i < records.length; i++) {
                     SObject implementation = records[i];
-                    Object facilityLeaseAgreementId = implementation.getField("Facility_Lease_Agreement__c");
-                    Object implementationId         = implementation.getId();
 
+                    //GET THE RELATED FACILITY LEASE AGREEMENT RECORD
+                    XmlObject flaRelatedObject = implementation.getChild("Facility_Lease_Agreement__r");
+
+                    Object facilityLeaseAgreementId     = implementation.getField("Facility_Lease_Agreement__c");
+                    Object facilityLeaseAgreementName   = flaRelatedObject.getField("Name");
+
+                    //System.out.println("FLA: " + facilityLeaseAgreementId + " Name: " + facilityLeaseAgreementName);
+
+                    Object implementationId             = implementation.getId();
+
+
+                    //OPERATION: UPDATE FLA
                     SObject facilityLeaseAgreement = new SObject();
                     facilityLeaseAgreement.setType("Facility_Lease_Agreement__c");
-
                     facilityLeaseAgreement.setId(facilityLeaseAgreementId.toString());
-                    facilityLeaseAgreement.setField("Name", "(MIGRATED): " + facilityLeaseAgreement.getField("Name"));
+                    facilityLeaseAgreement.setField("Name", "(MIGRATED): " + facilityLeaseAgreementName);
                     facilityLeaseAgreement.setField("BOSS_Implementation__c", implementationId);
-
                     flasToUpdate[i] = facilityLeaseAgreement;
+
+                    //OPERATION: QUERY MIGRATED FACILITY LEASE AGREEMENTS
+
+                    //OPERATION: QUERY APOLLO
+
+                    //OPERATION: CREATE SITE
+
+                    //OPERATION: CREATE JUNCION AND BIND TO SITE AND IMPLEMENTATION
+
+                    //OPERATION: CREATE ASSETS AND BIND TO SITE WITH REFERENCE TO JUNCTION AND IMPLEMENTATION
+
+
                 }
 
                 SaveResult[] saveResults = connection.update(flasToUpdate);
-                List<String> successIds = processResults(saveResults);
+                String successIds = processResults(saveResults);
             }
 
 
@@ -142,13 +164,67 @@ public class Main{
             }
         }
 
-        public static List<String> processResults(SaveResult[] saveResults){
-            List<String> successIds = new ArrayList<>();
+        public static SObject createSite(){
+
+            SObject site = new SObject();
+            site.setType("Boss_Site__c");
+            site.setField("Name", "");
+            site.setField("Account__c", "");
+            site.setField("Street__c", "");
+            site.setField("Suite__c", "");
+            site.setField("City__c", "");
+            site.setField("State__c", "");
+            site.setField("Zip_Code__c", "");
+            site.setField("Ship_To__c", "");
+
+            return site;
+
+        }
+
+        public static void createAsset(){
+            SObject junction = new SObject();
+            junction.setType("Boss_PS_Junction__c");
+            junction.setField("Boss_Site__c", "");
+            junction.setField("Serial_Number__c", "");
+            junction.setField("Status__c", "");
+            junction.setField("Type__c", ""); //FACILITIES OR BREAKROOM
+            junction.setField("Location__c", "");
+            junction.setField("Order__c", "");
+            junction.setField("Install_Date__c", "");
+            junction.setField("Asset_Cost__c", "");
+
+            junction.setField("Product__c", ""); //REFERENCE TO PRODUCT
+
+            /*
+            junction.setField("Custom_Asset_Name__c", "");
+            junction.setField("Custom_Asset_SKU__c", "");
+            junction.setField("Custom_Asset_Vendor__c", "");
+            junction.setField("Custom_Asset_List_Price__c", "");
+            junction.setField("Custom_Asset_Installation_Cost__c", "");
+            junction.setField("Custom_Asset_Description__c", "");
+            */
+        }
+
+        public static void createJunction(){
+            SObject junction = new SObject();
+            junction.setType("Boss_PS_Junction__c");
+            junction.setField("Boss_Site__c", "");
+            junction.setField("Boss_Implementation__c", "");
+            junction.setField("Contact_Name__c", "");
+            junction.setField("Contact_Phone__c", "");
+            junction.setField("Contact_Email__c", "");
+            junction.setField("Contact_Title__c", "");
+
+        }
+
+
+        public static String processResults(SaveResult[] saveResults){
+            String successIds = "";
 
             for(SaveResult result : saveResults){
                 if (result.isSuccess()) {
-                    successIds.add(result.getId());
-                    System.out.println("RECORD MODIFIED SUCCESSFULLY: " + result.getId());
+                    String successId = "'"+ result.getId() +"'";
+                    successIds = (successIds.isEmpty()) ? successId : successIds + "," + successIds ;
                 }else{
                     for (int e = 0; e < result.getErrors().length; e++) {
                         Error err = result.getErrors()[e];
@@ -158,6 +234,8 @@ public class Main{
                     }
                 }
             }
+
+            System.out.println("SUCCESS IDS: " + successIds);
 
             return successIds;
         }
