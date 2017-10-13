@@ -17,8 +17,8 @@ public class Postgres {
 
 
 
-    public static String dbSelect(String flaId) {
-
+    public static ResultSet dbSelect(String flaId) {
+        ResultSet rs = null;
         try {
             postgresConnection.setAutoCommit(false);
 
@@ -26,8 +26,10 @@ public class Postgres {
             pstmt.setString(1, flaId);
             System.out.println("prepared statment: " + pstmt.toString());
 
-            ResultSet rs = pstmt.executeQuery();
+            rs = pstmt.executeQuery();
+
             while ( rs.next() ) {
+
                 //int id = rs.getInt("id");
                 String accountId            = rs.getString("account_name__c");
                 String contactId            = rs.getString("contact_name__c");
@@ -61,7 +63,7 @@ public class Postgres {
             System.err.println( e.getClass().getName()+": "+ e.getMessage() );
             System.exit(0);
         }
-        return "Operation done successfully";
+        return rs;
     }
 
 
@@ -85,6 +87,6 @@ public class Postgres {
         }catch(Exception e){
             System.err.println(e.getClass().getName()+": "+e.getMessage());
         }
-
     }
+
 }
