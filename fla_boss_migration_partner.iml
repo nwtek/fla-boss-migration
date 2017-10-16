@@ -9,5 +9,6 @@
     <orderEntry type="sourceFolder" forTests="false" />
     <orderEntry type="library" name="partner" level="project" />
     <orderEntry type="library" name="force-wsc-41.0.0-uber" level="project" />
+    <orderEntry type="library" name="postgresql-42.1.1.jre6" level="project" />
   </component>
 </module>

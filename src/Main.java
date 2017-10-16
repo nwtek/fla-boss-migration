@@ -4,17 +4,14 @@ import com.sforce.soap.partner.sobject.*;
 import com.sforce.ws.*;
 import com.sforce.ws.bind.XmlObject;
 
-import javax.xml.crypto.dsig.XMLObject;
-import java.sql.ResultSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
+import java.util.*;
 
 public class Main{
     public static ConnectorConfig config = new ConnectorConfig();
     public static PartnerConnection connection;
     public static Boolean commitData = false;
+    public static List<String> persistentSKUs;
+    public static StringBuilder persistFLAIds = new StringBuilder();
 
     public static void main(String[] args) {
 
@@ -23,14 +20,16 @@ public class Main{
             config.setPassword("");
             connection = Connector.newConnection(config);
 
+            persistFLAIds.append("'a1738000002Ly19AAC'");
+
+            commitData = true;
             processImplementations();
             processSites();
 
-            //updateFacilityLeaseAgreement("''");
-
-            //commitData = true;
-
-
+            //System.out.println("DATE: " + Postgres.dateFormatUtil("2017-01-04"));
+            //Calendar today = Calendar.getInstance();
+            //DateFormat parseFormat = new SimpleDateFormat("yyyy-MM-dd");
+            //System.out.println("DATE: " + cal.getTime());
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -39,7 +38,7 @@ public class Main{
 
         public static void processImplementations(){
             try {
-                QueryResult queryResults = connection.query("SELECT Id, Name, Status__c, Lease_Agreement_Type__c, OwnerId, Requestor__c, Account_Name__c, Master_Customer_Num__c, Contact_Name__c, Brewer_Installation_Method__c, Special_Instructions__c, Project_Manager__c, Service_Provider__c, Number_of_Installation_Locations__c, Lease_Term__c, Hanging_Allowance__c FROM Facility_Lease_Agreement__c Where CreatedDate >= 2014-01-01T00:00:00Z AND CreatedDate <= 2014-02-01T00:00:00Z And Boss_Implementation__c = Null limit 1 ");
+                QueryResult queryResults = connection.query("SELECT Id, Name, Status__c, Lease_Agreement_Type__c, OwnerId, Requestor__c, Account_Name__c, Master_Customer_Num__c, Contact_Name__c, Brewer_Installation_Method__c, Special_Instructions__c, Project_Manager__c, Service_Provider__c, Number_of_Installation_Locations__c, Lease_Term__c, Hanging_Allowance__c FROM Facility_Lease_Agreement__c Where Id IN (" + persistFLAIds + ")"); // CreatedDate >= 2014-01-01T00:00:00Z AND CreatedDate <= 2014-02-01T00:00:00Z And Boss_Implementation__c = Null limit 1 ");
 
                 if (queryResults.getSize() > 0) {
                     SObject[] records = queryResults.getRecords();
@@ -49,8 +48,11 @@ public class Main{
                     for (int i = 0; i < records.length; i++) {
                         SObject facility_lease_agreement = records[i];
                         facilityLeaseAgreements.add(facility_lease_agreement);
-                        //dbSelect(flaId);
-                        System.out.println("FLA ID: " + facility_lease_agreement.getId());
+
+                        System.out.println("FLA TO BE PROCESSED: " + facility_lease_agreement.getId());
+
+                        String flaIdString = (persistFLAIds.length() == 0) ? "'" + facility_lease_agreement.getId() + "'" : ",'" + facility_lease_agreement.getId() + "'";
+                        persistFLAIds.append(flaIdString);
                     }
 
                     createImplementations(facilityLeaseAgreements);
@@ -113,7 +115,6 @@ public class Main{
                     updateFacilityLeaseAgreement(processResults("Boss Implementation", saveResults));
                 }
 
-
             }catch(Exception e){
                 System.out.println("ERROR: CREATE IMPLEMENTATIONS");
                 e.printStackTrace();
@@ -121,13 +122,13 @@ public class Main{
         }
 
 
-
         public static void processSites(){
-            ResultSet apolloResult = null;
-            Map<String, Map<String, Map<String, String>>> mapAssets = new HashMap<>();
+
+            //Map<String, Map<String, Map<String, String>>> mapAssets = new HashMap<>();
+            Map<String, List<ArrayList<String[]>>> mapApolloAssetstoFLA = new HashMap<>();
 
             try {
-                QueryResult queryResults = connection.query("SELECT Id, Boss_Implementation__c, Name, Status__c, Lease_Agreement_Type__c, OwnerId, Requestor__c, Account_Name__c, Master_Customer_Num__c, Contact_Name__c, Contact_Name__r.Name, Contact_Name__r.Phone, Contact_Name__r.Email, Brewer_Installation_Method__c, Special_Instructions__c, Project_Manager__c, Service_Provider__c, Number_of_Installation_Locations__c, Lease_Term__c, Hanging_Allowance__c FROM Facility_Lease_Agreement__c Where Boss_Implementation__c != Null");
+                QueryResult queryResults = connection.query("SELECT Id, BOSS_Implementation__c, Name, Status__c, Lease_Agreement_Type__c, OwnerId, Requestor__c, Account_Name__c, Master_Customer_Num__c, Contact_Name__c, Contact_Name__r.Name, Contact_Name__r.Phone, Contact_Name__r.Email, Brewer_Installation_Method__c, Special_Instructions__c, Project_Manager__c, Service_Provider__c, Number_of_Installation_Locations__c, Lease_Term__c, Hanging_Allowance__c FROM Facility_Lease_Agreement__c Where ID IN (" + persistFLAIds + ")");
 
                 List<SObject> facilityLeaseAgreements = new ArrayList<SObject>();
 
@@ -147,78 +148,115 @@ public class Main{
                 //USED BOTH IN NESTED MAP AND FOR CREATING JUNCTIONS AND ASSETS
                 Map<String, Map<String, String>> siteMap = new HashMap();
 
+
                 for (SObject facilityLeaseAgreement : facilityLeaseAgreements) {
 
                     String flaId = facilityLeaseAgreement.getId();
-                    Object impId = facilityLeaseAgreement.getField("Boss_Implementation__c");
+                    Object impId = facilityLeaseAgreement.getField("BOSS_Implementation__c");
+
+                    System.out.println("IMP ID: " + impId);
+
+                    //System.out.println("FLA OBJECT: " + facilityLeaseAgreement);
 
                     //GET THE RELATED FACILITY LEASE AGREEMENT RECORD
                     XmlObject contactRelatedObject = facilityLeaseAgreement.getChild("Contact_Name__r");
 
+                    persistentSKUs = new ArrayList<>();
+
                     //QUERY APOLLO DATA
-                    apolloResult = Postgres.dbSelect(flaId);
+                    List<ArrayList<String[]>> apolloResult = Postgres.dbSelect(flaId);
 
-                    siteMap = new HashMap();
+                    List<ArrayList<String[]>> arrayApolloOrders = new ArrayList<>();
 
-                    while (apolloResult.next()) {
+                    for (Integer i = 0; i < apolloResult.size(); i++) {
 
-                        Map<String, String> fieldMap = new HashMap<>();
-                        String orderNumber  = apolloResult.getString("invision_order_number__c");
-                        String accountId    = apolloResult.getString("account_name__c");
-                        String shipToId     = apolloResult.getString("ship_id");
-                        String siteKey      = accountId  + "_" + shipToId;
+                        for (String[] field : apolloResult.get(i)) {
+                            ArrayList<String[]> assetFieldsArray = new ArrayList<String[]>();
 
+                            persistentSKUs.add(field[0]);
 
+                            Map<String, String> fieldMap = new HashMap<>();
+                            String sku          = field[0];
+                            String siteName     = field[15] + " : " + field[11];
+                            String orderNumber  = field[2];
+                            String accountId    = field[4];
+                            String shipToId     = field[11];
+                            String siteKey      = accountId + "_" + shipToId;
 
-                        //THIS IS UGLY
-                        Map<String, String> mapAsset = new HashMap<>();
+                            String[] assetFields = new String[5];
+                            assetFields[0] = sku;
+                            assetFields[1] = orderNumber;
+                            assetFields[2] = field[1]; //qty
+                            assetFields[3] = field[3]; //create date
+                            assetFields[4] = field[9]; //status
 
-                        mapAsset.put("OrderNumber", orderNumber);
-                        mapAsset.put("SKU", apolloResult.getString("staples_sku"));
-                        mapAsset.put("QTY", apolloResult.getString("qty"));
+                            assetFieldsArray.add(assetFields);
 
-                        if(mapAssets.containsKey(siteKey)){
-                            mapAssets.get(siteKey).put(orderNumber, mapAsset);
-                        }else{
-                            Map<String, Map<String, String>> mapOrder = new HashMap();
-                            mapOrder.put(orderNumber, mapAsset);
+                            arrayApolloOrders.add(assetFieldsArray);
 
-                            mapAssets.put(siteKey, mapOrder);
-                        }
-
-                        if(!siteMap.containsKey(siteKey)){
                             /*
-                            String accountId            = rs.getString("account_name__c");
-                            String contactId            = rs.getString("contact_name__c");
-                            String flaID                = rs.getString("id");
-                            String leaseType            = rs.getString("lease_agreement_type__c");
-                            String specialInstructions  = rs.getString("special_instructions__c");
-                            String status               = rs.getString("status__c");
-                            String customerNumber       = rs.getString("customer");
+                            //THIS IS UGLY
+                            Map<String, String> mapAsset = new HashMap<>();
+                            mapAsset.put("OrderNumber", orderNumber);
+                            mapAsset.put("SKU", sku);
+                            mapAsset.put("QTY", field[1]);
 
-                            //ASSET
-                            String orderNumber          = apolloResult.getString("invision_order_number__c");
-                            String staplesSku           = apolloResult.getString("staples_sku");
-                            Integer quantity            = apolloResult.getInt("qty");
+                            if (mapAssets.containsKey(siteKey)) {
+                                mapAssets.get(siteKey).put(sku, mapAsset);
+                            } else {
+                                Map<String, Map<String, String>> mapOrder = new HashMap();
+                                mapOrder.put(sku, mapAsset);
+
+                                mapAssets.put(siteKey, mapOrder);
+                            }
                             */
 
-                            //SITE
-                            fieldMap.put("AccountId", apolloResult.getString("account_name__c"));
-                            fieldMap.put("Street", apolloResult.getString("address_1"));
-                            fieldMap.put("Suite", apolloResult.getString("address_3"));
-                            fieldMap.put("City", apolloResult.getString("city"));
-                            fieldMap.put("State", apolloResult.getString("state"));
-                            fieldMap.put("ZipCode", apolloResult.getString("zip_code_p1") + apolloResult.getString("zip_code_p2"));
-                            fieldMap.put("Ship_To__c", apolloResult.getString("ship_id"));
+                            if (!siteMap.containsKey(siteKey)) {
+                                /*
+                                String accountId            = rs.getString("account_name__c");
+                                String contactId            = rs.getString("contact_name__c");
+                                String flaID                = rs.getString("id");
+                                String leaseType            = rs.getString("lease_agreement_type__c");
+                                String specialInstructions  = rs.getString("special_instructions__c");
+                                String status               = rs.getString("status__c");
+                                String customerNumber       = rs.getString("customer");
 
-                            fieldMap.put("ContactName", contactRelatedObject.getField("Name").toString());
-                            fieldMap.put("ContactPhone", contactRelatedObject.getField("Phone").toString());
-                            fieldMap.put("ContactEmail", contactRelatedObject.getField("Email").toString());
-                            fieldMap.put("impId", impId.toString());
+                                //ASSET
+                                String orderNumber          = apolloResult.getString("invision_order_number__c");
+                                String staplesSku           = apolloResult.getString("staples_sku");
+                                Integer quantity            = apolloResult.getInt("qty");
+                                */
 
-                            siteMap.put(siteKey, fieldMap);
+                                //SITE
+                                fieldMap.put("AccountId", field[4]);
+                                fieldMap.put("ShipTo", field[11]);
+                                fieldMap.put("Name", siteName);
+
+                                fieldMap.put("Street", field[12]);
+                                fieldMap.put("Suite", field[13]);
+                                fieldMap.put("City", field[14]);
+                                fieldMap.put("State", field[15]);
+                                fieldMap.put("ZipCode", field[16] + field[17]);
+
+                                if (contactRelatedObject.getField("Name") != null)
+                                    fieldMap.put("ContactName", contactRelatedObject.getField("Name").toString());
+
+                                if (contactRelatedObject.getField("Phone") != null)
+                                    fieldMap.put("ContactPhone", contactRelatedObject.getField("Phone").toString());
+
+                                if (contactRelatedObject.getField("Email") != null)
+                                    fieldMap.put("ContactEmail", contactRelatedObject.getField("Email").toString());
+
+                                fieldMap.put("impId", impId.toString());
+
+
+                                siteMap.put(siteKey, fieldMap);
+                            }
                         }
+
+                        mapApolloAssetstoFLA.put(flaId, arrayApolloOrders);
                     }
+                    //}
 
                     flaMap.put(flaId, siteMap);
                 }
@@ -228,8 +266,12 @@ public class Main{
 
                     String siteIds = processResults("Boss Site", saveResults);
 
-                    processJunctions(siteIds, mapAssets, siteMap);
+                    processJunctions(siteIds, mapApolloAssetstoFLA, siteMap);
                 }
+                else{
+                    createSites(flaMap);
+                }
+
 
             } catch (Exception e) {
                 System.out.println("ERROR: QUERY FLAs");
@@ -250,9 +292,9 @@ public class Main{
             //<FLA> <SITENAME> <FIELD, VALUE>
         }
 
-        public static void processJunctions(String siteIds,  Map<String, Map<String, Map<String, String>>> mapAssets, Map<String, Map<String, String>> mapSites){
+        public static void processJunctions(String siteIds,  Map<String, List<ArrayList<String[]>>> mapApolloAssetstoFLA, Map<String, Map<String, String>> mapSites){
             try {
-                QueryResult queryResults = connection.query("SELECT Id, Ship_To__c, Account__c, Name, Street__c, Suite__c, City__c, State__c, Zip_Code__c From Boss_Site__c Where ID IN (" + siteIds + ")");
+                QueryResult queryResults = connection.query("SELECT Id, Ship_To_Number__c, Account__c, Name, Street__c, Suite__c, City__c, State__c, Zip_Code__c From Boss_Site__c Where ID IN (" + siteIds + ")");
 
                 if (queryResults.getSize() > 0) {
                     SObject[] records = queryResults.getRecords();
@@ -265,19 +307,30 @@ public class Main{
                         Object siteId = site.getId();
 
                         String accountId    = site.getField("Account__c").toString();
-                        String shipToId     = site.getField("Ship_To__c").toString();
+                        String shipToId     = site.getField("Ship_To_Number__c").toString();
                         String siteKey      = accountId  + "_" + shipToId;
 
-                        Map<String, String> mapSite = mapSites.get(siteKey);
+                        System.out.println("JUNCTION: SITE KEY: " + siteKey);
+                        System.out.println("JUNCTION: SITE ID: " + siteId);
+
+
+                        System.out.println("JUNCTION: FIELD KEYS: " + mapSites.keySet());
+                        System.out.println("JUNCTION: FIELD VALUES: " + mapSites.values());
+
+
+                        Map<String, String> mapFields = mapSites.get(siteKey);
+
+                        System.out.println("FIELD KEYS: " + mapFields.keySet());
+                        System.out.println("FIELD VALUES: " + mapFields.values());
 
                         //CREATE JUNCTION
                         SObject junction = new SObject();
                         junction.setType("Boss_PS_Junction__c");
                         junction.setField("Boss_Site__c", siteId);
-                        junction.setField("Boss_Implementation__c", mapSite.get("impId"));
-                        junction.setField("Contact_Name__c", mapSite.get("ContactName"));
-                        junction.setField("Contact_Phone__c", mapSite.get("ContactPhone"));
-                        junction.setField("Contact_Email__c", mapSite.get("ContactEmail"));
+                        junction.setField("Boss_Implementation__c", mapFields.get("impId"));
+                        junction.setField("Contact_Name__c", mapFields.get("ContactName"));
+                        junction.setField("Contact_Phone__c", mapFields.get("ContactPhone"));
+                        junction.setField("Contact_Email__c", mapFields.get("ContactEmail"));
 
                         junctions[i] = junction;
 
@@ -288,25 +341,26 @@ public class Main{
 
                         String junctionIds = processResults("Boss Junction", saveResults);
 
-                        processAssets(junctionIds, mapAssets);
+                        processAssets(junctionIds, mapApolloAssetstoFLA);
                     }
 
                 }
 
             } catch (Exception e) {
-                System.out.println("ERROR: QUERY FLAs");
+                System.out.println("ERROR: QUERY Boss_Site__c");
                 e.printStackTrace();
             }
         }
 
-    public static void processAssets(String junctionIds,  Map<String, Map<String, Map<String, String>>> mapAssets){
+    public static void processAssets(String junctionIds,  Map<String, List<ArrayList<String[]>>> mapApolloAssetstoFLA){
+        Map<String, String> mapSkusProducts = queryProducts();
+
         try {
-            QueryResult queryResults = connection.query("SELECT Id, Boss_Implementation__c, Boss_Site__c, Boss_Site__r.Account__c, Boss_Site__r.Ship_To__c FROM Boss_PS_Junction__c Where ID IN (" + junctionIds + ")");
+            QueryResult queryResults = connection.query("SELECT Id, Boss_Implementation__c, Boss_Implementation__r.Facility_Lease_Agreement__c, Boss_Site__c, Boss_Site__r.Account__c, Boss_Site__r.Ship_To_Number__c FROM Boss_PS_Junction__c Where ID IN (" + junctionIds + ")");
 
             if (queryResults.getSize() > 0) {
                 SObject[] records = queryResults.getRecords();
-
-                SObject[] assets = new SObject[mapAssets.size()];
+                SObject[] assets = null;
 
                 for (int i = 0; i < records.length; i++) {
                     SObject junction = records[i];
@@ -315,53 +369,99 @@ public class Main{
 
                     //GET THE RELATED FACILITY LEASE AGREEMENT RECORD
                     XmlObject siteRelatedObject = junction.getChild("Boss_Site__r");
+                    XmlObject flaRelatedObject  = junction.getChild("Boss_Implementation__r");
 
-                    String accountId    = siteRelatedObject.getField("Account__c").toString();
-                    String shipToId     = siteRelatedObject.getField("Ship_To__c").toString();
-                    String siteKey      = accountId  + "_" + shipToId;
+                    String accountId            = siteRelatedObject.getField("Account__c").toString();
+                    String shipToId             = siteRelatedObject.getField("Ship_To_Number__c").toString();
+                    String flaId                = flaRelatedObject.getField("Facility_Lease_Agreement__c").toString();
+                    String siteKey              = accountId  + "_" + shipToId;
 
-                    Map<String, Map<String, String>> mapOrder = mapAssets.get(siteKey);
+                    List<ArrayList<String[]>> mapOrders = mapApolloAssetstoFLA.get(flaId);
+                    assets = new SObject[mapOrders.size()];
 
-                    for(String orderNumber : mapOrder.keySet()){
+                    for(Integer j = 0; j < mapOrders.size(); j++){
 
-                        Map<String, String> mapAsset = mapOrder.get(orderNumber);
+                        for (String[] field : mapOrders.get(j)) {
 
-                        //CREATE ASSET
-                        SObject asset = new SObject();
-                        asset.setType("Boss_Asset__c");
-                        asset.setField("Boss_Site__c", junction.getField("Boss_Site__c"));
-                        asset.setField("BOSS_Implementation__c", junction.getField("Boss_Implementation__c"));
-                        asset.setField("BOSS_PS_Junction__c", junctionId);
+                            String sku          = field[0];
+                            String orderNumber  = field[1];
+                            String quantity     = field[2];
+                            String orderDate    = field[3];
+                            String status       = field[4];
 
-                        asset.setField("Quantity__c", mapAsset.get("QTY"));
-                        asset.setField("Order__c", mapAsset.get("OrderNumber"));
-                        asset.setField("Custom_Asset_SKU__c", mapAsset.get("SKU"));
+                            Calendar today = Calendar.getInstance();
 
-                        /*
-                        asset.setField("Serial_Number__c", "SerialNumber");
-                        asset.setField("Status__c", "Status");
-                        asset.setField("Type__c", "Type"); //FACILITIES OR BREAKROOM
-                        asset.setField("Location__c", "Location");
-                        asset.setField("Install_Date__c", "InstallDate");
-                        asset.setField("Asset_Cost__c", "Cost");
-                        */
+                            //CREATE ASSET
+                            SObject asset = new SObject();
+                            asset.setType("Boss_Asset__c");
+                            asset.setField("Boss_Site__c", junction.getField("Boss_Site__c"));
+                            asset.setField("BOSS_Implementation__c", junction.getField("Boss_Implementation__c"));
+                            asset.setField("BOSS_PS_Junction__c", junctionId);
 
-                        assets[i] = asset;
+                            asset.setField("Order__c", orderNumber);
+                            asset.setField("Quantity__c", quantity);
+                            asset.setField("Status__c", status);
+                            asset.setField("Ordered_Date__c", Utilities.dateFormatUtil(orderDate));
+
+                            if(mapSkusProducts.containsKey(sku))
+                                asset.setField("Product__c", mapSkusProducts.get(sku));
+                            else
+                                asset.setField("Custom_Asset_SKU__c", sku);
+
+                            /*
+                            asset.setField("Serial_Number__c", "SerialNumber");
+                            asset.setField("Type__c", "Type"); //FACILITIES OR BREAKROOM
+                            asset.setField("Location__c", "Location");
+                            asset.setField("Install_Date__c", "InstallDate");
+                            asset.setField("Asset_Cost__c", "Cost");
+                            */
+
+                            assets[j] = asset;
+                        }
                     }
-
                 }
 
                 if (commitData) {
                     SaveResult[] saveResults = connection.create(assets);
                     String assetIds = processResults("Boss Asset", saveResults);
                 }
-
             }
 
         } catch (Exception e) {
             System.out.println("ERROR: QUERY FLAs");
             e.printStackTrace();
         }
+    }
+
+    public static Map<String, String> queryProducts() {
+        Map<String, String> mapSKUsToProducts = new HashMap<>();
+        StringBuilder skusForQuery = new StringBuilder();
+
+        for(String skuKey : persistentSKUs){
+            String sku = (skusForQuery.length() == 0) ? "'" + skuKey + "'" : ",'" + skuKey + "'";
+            skusForQuery.append(sku);
+        }
+
+        try {
+            QueryResult queryResults = connection.query("SELECT Id, Cost__c, Unit__c, List__c, Vendor__c, Staples_Sku__c, Type__c FROM Product2 Where Staples_Sku__c IN (" + skusForQuery + ")");
+
+            if (queryResults.getSize() > 0) {
+                SObject[] records = queryResults.getRecords();
+
+                for (int i = 0; i < records.length; i++) {
+                    SObject product = records[i];
+
+                    Object productSKU = product.getField("Staples_Sku__c");
+
+                    mapSKUsToProducts.put(productSKU.toString(), product.getId());
+                }
+            }
+            } catch(Exception e){
+                System.out.println("ERROR: QUERY PRODUCTS");
+                e.printStackTrace();
+            }
+
+            return mapSKUsToProducts;
     }
 
         //NEED BOTH THE FLA ID AND IMPLEMENTATION ID
@@ -407,6 +507,7 @@ public class Main{
             }
         }
 
+        //[Suite, ContactPhone, AccountId, State, ZipCode, Street, ContactEmail, ShipTo, City, ContactName, impId]
         public static SObject[] createSites(Map<String,  Map<String, Map<String, String>>> mapFLA){
             SObject[] newSites = null;
             for(String flaId : mapFLA.keySet()){
@@ -415,16 +516,22 @@ public class Main{
 
                 Integer i = 0;
                 for(String siteId : mapSite.keySet()){
+
+                    System.out.println("NAME LENGTH: " + mapSite.get(siteId).get("Name").length());
+                    System.out.println("NAME: " + mapSite.get(siteId).get("Name") + " : LENGTH: " + mapSite.get(siteId).get("Name").length());
+                    System.out.println("STREET: " + mapSite.get(siteId).get("Street"));
+                    System.out.println("SHIPTO: " + mapSite.get(siteId).get("ShipTo"));
+
                     SObject site = new SObject();
                     site.setType("Boss_Site__c");
-                    site.setField("Name", mapFLA.get("Name"));
-                    site.setField("Account__c", mapFLA.get("AccountId"));
-                    site.setField("Street__c", mapFLA.get("Street"));
-                    site.setField("Suite__c", mapFLA.get("Suite"));
-                    site.setField("City__c", mapFLA.get("City"));
-                    site.setField("State__c", mapFLA.get("State"));
-                    site.setField("Zip_Code__c", mapFLA.get("ZipCode"));
-                    site.setField("Ship_To__c", mapFLA.get("ShipTo"));
+                    site.setField("Name", mapSite.get(siteId).get("Name"));
+                    site.setField("Account__c", mapSite.get(siteId).get("AccountId"));
+                    site.setField("Street__c", mapSite.get(siteId).get("Street"));
+                    site.setField("Suite__c", mapSite.get(siteId).get("Suite"));
+                    site.setField("City__c", mapSite.get(siteId).get("City"));
+                    site.setField("State__c", mapSite.get(siteId).get("State"));
+                    site.setField("Zip_Code__c", mapSite.get(siteId).get("ZipCode"));
+                    site.setField("Ship_To_Number__c", mapSite.get(siteId).get("ShipTo"));
                     newSites[i] = site;
                     i++;
                 }
@@ -433,6 +540,7 @@ public class Main{
             return newSites;
         }
 
+        /*
         public static SObject createJunction(String key, Map<String, Map<String, String>> mapJunctions){
 
             Map<String, String> mapJunction = mapJunctions.get(key);
@@ -448,7 +556,9 @@ public class Main{
 
             return junction;
         }
+        */
 
+        /*
         public static void createAsset(){
             SObject junction = new SObject();
             junction.setType("Boss_PS_Junction__c");
@@ -463,15 +573,16 @@ public class Main{
 
             junction.setField("Product__c", ""); //REFERENCE TO PRODUCT
 
-            /*
-            junction.setField("Custom_Asset_Name__c", "");
-            junction.setField("Custom_Asset_SKU__c", "");
-            junction.setField("Custom_Asset_Vendor__c", "");
-            junction.setField("Custom_Asset_List_Price__c", "");
-            junction.setField("Custom_Asset_Installation_Cost__c", "");
-            junction.setField("Custom_Asset_Description__c", "");
-            */
+
+            //junction.setField("Custom_Asset_Name__c", "");
+            //junction.setField("Custom_Asset_SKU__c", "");
+            //junction.setField("Custom_Asset_Vendor__c", "");
+            //junction.setField("Custom_Asset_List_Price__c", "");
+            //junction.setField("Custom_Asset_Installation_Cost__c", "");
+            //junction.setField("Custom_Asset_Description__c", "");
+
         }
+        */
 
         public static String processResults(String objectName, SaveResult[] saveResults){
             //String successIds = "";
@@ -501,5 +612,6 @@ public class Main{
         class NestedMap{
             public Map<String, Map<String, String>> nestedMap = new HashMap<>();
         }
+
 }
 

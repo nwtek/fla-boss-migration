@@ -1,7 +1,10 @@
 import com.sforce.soap.partner.QueryResult;
 
 import java.sql.*;
-import java.util.List;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.*;
+import java.util.Date;
 
 public class Postgres {
 
@@ -9,15 +12,18 @@ public class Postgres {
 
         public static void main( String args[] ) {
 
-            dbOpen();
+            //dbOpen();
                 //queryFLAs();
-            dbClose();
+            //dbClose();
 
         }
 
 
 
-    public static ResultSet dbSelect(String flaId) {
+    public static List<ArrayList<String[]>> dbSelect(String flaId) {
+        List<ArrayList<String[]>> resultsArray = new ArrayList<>();
+
+        dbOpen();
         ResultSet rs = null;
         try {
             postgresConnection.setAutoCommit(false);
@@ -26,35 +32,51 @@ public class Postgres {
             pstmt.setString(1, flaId);
             System.out.println("prepared statment: " + pstmt.toString());
 
+
             rs = pstmt.executeQuery();
 
+
+
             while ( rs.next() ) {
+                ArrayList<String[]> fieldArray = new ArrayList<String[]>();
+                String[] result = new String[18];
 
                 //int id = rs.getInt("id");
-                String accountId            = rs.getString("account_name__c");
-                String contactId            = rs.getString("contact_name__c");
-                String flaID                = rs.getString("id");
-                String leaseType            = rs.getString("lease_agreement_type__c");
-                String specialInstructions  = rs.getString("special_instructions__c");
-                String status               = rs.getString("status__c");
-                String customerNumber       = rs.getString("customer");
-                String orderNumber          = rs.getString("invision_order_number__c");
+                //ASSET
+                result[0] = Utilities.fieldCleanseUtil(rs.getString("staples_sku"));
+                result[1] = Utilities.fieldCleanseUtil(rs.getString("qty"));
+
+                //ORDER
+                result[2] = Utilities.fieldCleanseUtil(rs.getString("invision_order_number__c"));
+                result[3] = Utilities.fieldCleanseUtil(rs.getString("create_date"));
+                result[9] = Utilities.fieldCleanseUtil(rs.getString("status__c"));
+
+                //IMPLEMENTATION
+                result[4] = Utilities.fieldCleanseUtil(rs.getString("account_name__c"));
+
+                //JUNCTION
+                result[5] = Utilities.fieldCleanseUtil(rs.getString("contact_name__c"));
+                result[6] = Utilities.fieldCleanseUtil(rs.getString("id"));
+                result[7] = Utilities.fieldCleanseUtil(rs.getString("lease_agreement_type__c"));
+                result[8] = Utilities.fieldCleanseUtil(rs.getString("special_instructions__c"));
+                result[10] = Utilities.fieldCleanseUtil(rs.getString("customer"));
+                result[11] = Utilities.fieldCleanseUtil(rs.getString("ship_id"));
 
                 //SITE
-                String street               = rs.getString("address_1");
-                String suite                = rs.getString("address_3");
-                String city                 = rs.getString("city");
-                String state                = rs.getString("state");
-                String zip                  = rs.getString("zip_code_p1");
+                result[12] = Utilities.fieldCleanseUtil(rs.getString("address_1"));
+                result[13] = Utilities.fieldCleanseUtil(rs.getString("address_3"));
+                result[14] = Utilities.fieldCleanseUtil(rs.getString("city"));
+                result[15] = Utilities.fieldCleanseUtil(rs.getString("state"));
+                result[16] = Utilities.fieldCleanseUtil(rs.getString("zip_code_p1"));
+                result[17] = Utilities.fieldCleanseUtil(rs.getString("zip_code_p2"));
 
 
-                //ASSET
-                String staplesSku           = rs.getString("staples_sku");
-                Integer quantity            = rs.getInt("qty");
+                fieldArray.add(result);
 
+                resultsArray.add(fieldArray);
 
-                System.out.println( "invision order number: " + orderNumber );
-                System.out.println( "street: " + street );
+                System.out.println( "invision order number: " + Utilities.fieldCleanseUtil(rs.getString("invision_order_number__c")) );
+                System.out.println( "street: " + rs.getString("address_1") );
                 System.out.println("---");
             }
             rs.close();
@@ -63,7 +85,22 @@ public class Postgres {
             System.err.println( e.getClass().getName()+": "+ e.getMessage() );
             System.exit(0);
         }
-        return rs;
+
+        /*
+        List<ArrayList<String[]>> apolloResult = Postgres.dbSelect("a1738000002LwZTAA0");
+        for (Integer i = 0; i < apolloResult.size(); i++) {
+            System.out.println(" ORDER: " + apolloResult.get(i));
+            for (String[] field : apolloResult.get(i)) {
+                for(Integer j = 0; j < field.length; j++){
+                    System.out.println("FIELD: " + field[j]);
+                }
+            }
+        }
+        */
+
+
+        dbClose();
+        return resultsArray;
     }
 
 
@@ -71,7 +108,7 @@ public class Postgres {
         postgresConnection = null;
         try {
             Class.forName("org.postgresql.Driver");
-            postgresConnection = DriverManager.getConnection("jdbc:postgresql://localhost:5432/apollo_fla","heran004", "");
+            postgresConnection = DriverManager.getConnection("jdbc:postgresql://localhost:5432/apollo_fla","", "");
         } catch (Exception e) {
             e.printStackTrace();
             System.err.println(e.getClass().getName()+": "+e.getMessage());
@@ -88,5 +125,7 @@ public class Postgres {
             System.err.println(e.getClass().getName()+": "+e.getMessage());
         }
     }
+
+
 
 }
