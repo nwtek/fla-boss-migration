@@ -28,39 +28,67 @@ public class describe {
 
     public static void describeObject(){
 
-    try{
-        DescribeSObjectResult desc = new DescribeSObjectResult();
+        String objectAPIName = "LocationBacklog__c";
 
-        desc = connection.describeSObject("LocationBacklog__c");
+        try{
+            DescribeSObjectResult desc = new DescribeSObjectResult();
 
-        Field[] fields = desc.getFields();
+            desc = connection.describeSObject(objectAPIName);
 
-        System.out.println("OBJECT FIELDS: " + fields);
+            Field[] fields = desc.getFields();
 
-        // Iterate through each field and gets its properties
-        for (int i = 0; i < fields.length; i++) {
-            Field field = fields[i];
-            System.out.println("Field name: " + field.getName());
-            System.out.println("Field label: " + field.getLabel());
+            createTableSQL(objectAPIName, fields);
 
-            // If this is a picklist field, show the picklist values
-            if (field.getType().equals(FieldType.picklist)) {
-                PicklistEntry[] picklistValues = field.getPicklistValues();
-                if (picklistValues != null) {
-                    System.out.println("Picklist values: ");
-                    for (int j = 0; j < picklistValues.length; j++) {
-                        if (picklistValues[j].getLabel() != null) {
-                            System.out.println("\tItem: " + picklistValues[j].getLabel()
-                            );
-                        }
-                    }
-                }
-            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-    } catch (Exception e) {
-        e.printStackTrace();
     }
 
+    private static Map<String, String> convertDataTypes(){
+        Map<String, String> convertType = new HashMap<>();
+
+        convertType.put("id", "character"); //or varchar2 for oracle
+        convertType.put("reference", "character");
+        convertType.put("string", "character");
+        convertType.put("boolean", "character");
+        convertType.put("picklist", "character");
+        convertType.put("textarea", "character");
+        convertType.put("datetime", "timestamp");
+        convertType.put("number", "number");
+
+        return convertType;
+    }
+
+    private static String createTableSQL(String object, Field[] fields){
+        Map<String, String> convertType = convertDataTypes();
+
+        String createTableStatement = "CREATE TABLE " + object + "(";
+
+        for (int i = 0; i < fields.length; i++) {
+            Field   field           = fields[i];
+            String  fieldType       = field.getType().toString();
+            Integer fieldLength     = 0;
+
+            switch (fieldType) {
+                case "datetime": fieldLength = 9;
+                    break;
+                case "boolean":  fieldLength = 5;
+                    break;
+                default: fieldLength = field.getLength();
+                    break;
+            }
+
+            createTableStatement += field.getName() + " " + convertType.get(fieldType) + "(" + fieldLength + ")";
+
+            if(i < (fields.length-1))
+            createTableStatement += ", ";
+        }
+
+        createTableStatement += ");";
+
+        System.out.println(createTableStatement);
+
+        return createTableStatement;
     }
 }
